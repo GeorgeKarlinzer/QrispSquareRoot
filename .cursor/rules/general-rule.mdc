@@ -1,0 +1,7 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+
+In every request use information from Qrisp folder to gather the required context for a code
