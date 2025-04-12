@@ -1,305 +1,303 @@
-from qrisp import QuantumFloat, x, cx
+from qrisp import QuantumFloat, x, cx, QuantumCircuit, control, Operation, QuantumSession, XGate, Qubit
 import math
 
-# Initialize variable a
-a = 26
+def peres_gate():
+    qc = QuantumCircuit(3)
+    qc.ccx(0, 1, 2)
+    qc.cx(0, 1)
+    return qc.to_gate(name="peres")
 
-# Calculate n as the number of bits needed to represent a
-n = math.ceil(math.log2(a + 1))  # +1 to ensure we have enough bits
+def add_wo_overflow_circuit(n):
+    qc = QuantumCircuit(2 * n)
+    B = [i for i in range(0, n, 1)]
+    A = [i for i in range(n, 2 * n, 1)]
+    
+    # Step 1
+    for i in range(1, n, 1):
+        qc.cx(A[i], B[i])
+        
+    # Step 2
+    for i in range(n-2, 0, -1):
+        qc.cx(A[i], A[i+1])
 
-# Ensure n is even
-if n % 2 != 0:
-    n += 1
-    
-print(f"n = {n}")
+    # Step 3
+    for i in range(0, n-1, 1):
+        qc.ccx(A[i], B[i], A[i+1])
 
-print(f"a = {a}, requires {n} bits to represent (adjusted to ensure even number)")
-print("-" * 40)
-
-# Create quantum registers
-# We use QuantumFloat which can encode integer values
-R = QuantumFloat(n, 0, name="R")  # n bits with exponent 0 (integer)
-F = QuantumFloat(n, 0, name="F")  # n bits with exponent 0 (integer)
-z = QuantumFloat(1, 0, name="z")  # 1 bit with exponent 0 (integer)
-
-# Initialize registers with values
-R[:] = a  # R = 26
-F[:] = 1  # F = 1
-z[:] = 0  # z = 0
-
-def visualize_registers():
-    print("Quantum register states:")
-    print("-" * 40)
-    print(f"R = {R.get_measurement()}")
-    print(f"F = {F.get_measurement()}")
-    print(f"z = {z.get_measurement()}")
-    print("-" * 40)
-
-# Print the quantum state of all registers separately
-visualize_registers()
-
-# Algorithm step functions
-def initial_subtraction():
-    # Step 1: Apply a quantum NOT gate at R[n-2]
-    x(R[n-2])
-
-    # Step 2: Apply a CNOT gate with R[n-2] as control and R[n-1] as target
-    R.qs.cx(R[n-2], R[n-1])
-    
-    # Step 3: Apply a CNOT gate with R[n-1] as control and F[1] as target
-    R.qs.cx(R[n-1], F[1])
-    
-    # Step 4: Apply an inverted control CNOT gate with R[n-1] as control and z as target
-    # First negate the control qubit
-    x(R[n-1])
-    # Apply the CNOT
-    R.qs.cx(R[n-1], z[0])
-    # Restore the control qubit
-    x(R[n-1])
-    
-    # Step 5: Apply an inverted control CNOT gate with R[n-1] as control and F[2] as target
-    # First negate the control qubit
-    x(R[n-1])
-    # Apply the CNOT
-    R.qs.cx(R[n-1], F[2])
-    # Restore the control qubit
-    x(R[n-1])
-
-    # Step 6: Quantum conditional addition or subtraction circuit
-    from qrisp import control
-    
-    # When z=0, we add F to R
-    with control(z[0], ctrl_state=0):
-        # Add F to R when z=0
-        # Use the relevant bits from F (F3,F2,F1,F0) and apply to R (Rn-1,Rn-2,Rn-3,Rn-4)
-        num_bits = min(4, n)  # Ensure we don't exceed the register size
-        
-        for i in range(num_bits):
-            # For addition, we simply apply CNOT gates from F to R
-            # Start from MSB: F[3] to R[n-1], F[2] to R[n-2], etc.
-            F_idx = min(3, num_bits-1) - i  # Start from F3 and go down
-            R_idx = n-1-i  # Start from Rn-1 and go down
-            
-            if F_idx >= 0 and R_idx >= 0:  # Ensure indices are valid
-                R.qs.cx(F[F_idx], R[R_idx])
-    
-    # When z=1, we subtract F from R
-    with control(z[0], ctrl_state=1):
-        # When z=1, we subtract F from R
-        # Use the relevant bits from F (F3,F2,F1,F0) and apply to R (Rn-1,Rn-2,Rn-3,Rn-4)
-        # We implement subtraction by flipping the bits in F (XOR), then adding
-
-        # Use at most the first 4 bits of F and R for the operation
-        # Map F3,F2,F1,F0 to Rn-1,Rn-2,Rn-3,Rn-4
-        num_bits = min(4, n)  # Ensure we don't exceed the register size
-        
-        for i in range(num_bits):
-            # For subtraction, we XOR the bits from F to R
-            # Start from MSB: F[3] to R[n-1], F[2] to R[n-2], etc.
-            F_idx = min(3, num_bits-1) - i  # Start from F3 and go down
-            R_idx = n-1-i  # Start from Rn-1 and go down
-            
-            if F_idx >= 0 and R_idx >= 0:  # Ensure indices are valid
-                R.qs.cx(F[F_idx], R[R_idx])
-
-def conditional_addition_or_substraction():
-    # This function implements iterations of Part 2 with i ranging from 2 to n/2-1
-    # Calculate number of iterations
-    iterations = n//2 - 2  # From i=2 to i=n/2-1
-    
-    print(f"Executing {iterations} iterations for Part 2")
-    
-    for i in range(2, n//2):
-        print(f"  Iteration {i}")
-        
-        # Step 1: Apply an inverted control CNOT gate with z as control and F[1] as target
-        # First negate the control qubit
-        x(z[0])
-        # Apply the CNOT
-        R.qs.cx(z[0], F[1])
-        # Restore the control qubit
-        x(z[0])
-        
-        # Step 2: Apply a CNOT gate with F[2] as control and z as target
-        R.qs.cx(F[2], z[0])
-        
-        # Step 3: Apply a CNOT gate with R[n-1] as control and F[1] as target
-        R.qs.cx(R[n-1], F[1])
-        
-        # Step 4: Apply an inverted control CNOT gate with R[n-1] as control and z as target
-        # First negate the control qubit
-        x(R[n-1])
-        # Apply the CNOT
-        R.qs.cx(R[n-1], z[0])
-        # Restore the control qubit
-        x(R[n-1])
-        
-        # Step 5: Apply an inverted control CNOT gate with R[n-1] as control and F[i+1] as target
-        # First negate the control qubit
-        x(R[n-1])
-        # Apply the CNOT - use F[i+1] for the current iteration
-        R.qs.cx(R[n-1], F[i+1])
-        # Restore the control qubit
-        x(R[n-1])
-        
-        # Step 6: For j = i + 1 to 3, apply SWAP gates to reorder bits in F
-        # Implement SWAP gates to reorder positions
-        for j in range(i + 1, 2, -1):  # Going from i+1 down to 3
-            # Apply SWAP gate between F[j] and F[j-1]
-            # SWAP is implemented with 3 CNOT gates
-            F.qs.swap(F[j], F[j-1])
-        
-        # Step 7: Quantum conditional addition or subtraction circuit
-        print(f"    Step 7: ADD/SUB operation for iteration {i}")
-        
-        # Sub-step 1: Perform addition or subtraction on R[n-1] through R[n-2-i-2] based on F[2-i+1] through F[0]
-        # Calculate the range of bits to operate on for this iteration
-        r_end = max(0, n-2-i-2)  # Make sure we don't go below 0
-        
-        from qrisp import control
-        
-        # Sub-step 1: Conditional ADD/SUB on the R register bits
-        print(f"      Operating on R[{n-1}] through R[{r_end}]")
-        
-        # We'll implement conditional ADD/SUB using controlled operations
-        # For conditional addition/subtraction, we need to:
-        # 1. If z=0, add appropriate bits of F to R
-        # 2. If z=1, subtract appropriate bits of F from R
-        
-        # Calculate which bits of F to use (F[2-i+1] through F[0])
-        f_start = min(2*i+1, n-1)  # Make sure we don't exceed register size
-        
-        with control(z[0], ctrl_state=0):
-            # Add appropriate bits of F to R when z=0
-            for idx, f_idx in enumerate(range(f_start, -1, -1)):
-                r_idx = n-1-idx
-                if r_idx >= r_end:  # Ensure we're within bounds
-                    R.qs.cx(F[f_idx], R[r_idx])
-        
-        with control(z[0], ctrl_state=1):
-            # Subtract appropriate bits of F from R when z=1
-            for idx, f_idx in enumerate(range(f_start, -1, -1)):
-                r_idx = n-1-idx
-                if r_idx >= r_end:  # Ensure we're within bounds
-                    # Negate the result with XOR for subtraction
-                    R.qs.cx(F[f_idx], R[r_idx])
-
-def remainder_restoration():
-    # This part implements the remainder restoration (Part 3)
-    print("Executing Part 3: Remainder Restoration")
-    
-    # Step 1: Apply an inverted control CNOT gate with z as control and F[1] as target
-    # First negate the control qubit
-    x(z[0])
-    # Apply the CNOT
-    R.qs.cx(z[0], F[1])
-    # Restore the control qubit
-    x(z[0])
-    print("  Step 1: Restored F[1] to its initial value")
-    
-    # Step 2: Apply a CNOT gate with F[2] as control and z as target
-    R.qs.cx(F[2], z[0])
-    print("  Step 2: Applied CNOT between F[2] and z to reset z to 0")
-    
-    # Step 3: Apply an inverted control CNOT gate with R[n-1] as control and z as target
-    # First negate the control qubit
-    x(R[n-1])
-    # Apply the CNOT
-    R.qs.cx(R[n-1], z[0])
-    # Restore the control qubit
-    x(R[n-1])
-    print("  Step 3: Applied inverted control CNOT between R[n-1] and z")
-    
-    # Step 4: Apply an inverted control CNOT gate with R[n-1] as control and F[n/2+1] as target
-    # Calculate the index for F[n/2+1]
-    f_idx = n//2 + 1
-    
-    # Check if the index is within the range of the register
-    if f_idx < n:
-        # First negate the control qubit
-        x(R[n-1])
-        # Apply the CNOT
-        R.qs.cx(R[n-1], F[f_idx])
-        # Restore the control qubit
-        x(R[n-1])
-        print(f"  Step 4: Applied inverted control CNOT between R[n-1] and F[{f_idx}]")
-    else:
-        print(f"  Step 4: Skipped as F[{f_idx}] is out of range for the {n}-bit register")
-    
-    # Step 5: Apply a NOT gate to z qubit
-    x(z[0])
-    print("  Step 5: Applied NOT gate to z qubit")
-    
-    # Step 6: Apply quantum CTRL-ADD circuit
-    print("  Step 6: Applying quantum CTRL-ADD circuit")
-    
-    from qrisp import control
-    
-    # Sub-step 1: Apply F and R to a quantum CTRL-ADD circuit
-    # In Qrisp, we can implement controlled addition using the control construct
-    with control(z[0], ctrl_state=1):
-        # Perform addition: R = R + F
-        # We're focusing on the relevant bits to add
-        for i in range(min(F.size, R.size)):
-            R.qs.cx(F[i], R[i])
-        
-        print("    Sub-step 1: Applied F and R to CTRL-ADD circuit")
-    
-    # Sub-step 2: The control(z[0]) above already implements the conditioning on z
-    print("    Sub-step 2: CTRL-ADD operation conditioned on z value")
-    
-    # Step 7: Apply a NOT gate to z qubit to restore its value
-    x(z[0])
-    print("  Step 7: Applied NOT gate to z qubit to restore its value")
-    
-    # Step 8: For j = n/2 + 1 to 3, apply SWAP gates to reorder bits in F
-    j_start = n//2 + 1
-    
-    print(f"  Step 8: Applying SWAP gates for j = {j_start} to 3")
-    
-    # Implement SWAP gates to reorder positions
-    for j in range(j_start, 2, -1):  # Going from n/2+1 down to 3
-        # Make sure j and j-1 are within the register size
-        if j < n and j-1 >= 0:
-            # Apply SWAP gate between F[j] and F[j-1]
-            # SWAP is implemented with 3 CNOT gates
-            F.qs.cx(F[j], F[j-1])
-            F.qs.cx(F[j-1], F[j])
-            F.qs.cx(F[j], F[j-1])
-            
-            print(f"    SWAP F[{j}] and F[{j-1}]")
+    # Step 4
+    for i in range(n-1, -1, -1):
+        if(i == n - 1):
+            qc.cx(A[i], B[i])
         else:
-            print(f"    Skipped SWAP between F[{j}] and F[{j-1}] as they are out of range")
+            qc.append(peres_gate(), [A[i], B[i], A[i+1]])
+
+    # Step 5
+    for i in range(1, n-1, 1):
+        qc.cx(A[i], A[i+1])
+
+    # Step 6
+    for i in range(1, n, 1):
+        qc.cx(A[i], B[i])
+
+    return qc.to_gate(name="ADD")
+
+def sub_wo_overflow_circuit(n):
+    qc = QuantumCircuit(2 * n)
+    A = [i for i in range(0, n, 1)]
+    B = [i for i in range(n, 2 * n, 1)]
+
+    for i in A:
+        qc.x(i)
     
-    # Step 9: Apply a CNOT gate with F[2] as control and z as target to restore z to 0
-    # Check if F[4] exists in our register (it is needed in the formula but might not exist in small registers)
-    f4_exists = 4 < n
+    qc.append(add_wo_overflow_circuit(n), A + B)
+
+    for i in A:
+        qc.x(i)
+
+    return qc.to_gate(name="SUB")
+
+def control_add_sub_circuit(n):
+    qc = QuantumCircuit(0)
+    z = 0
+    A = [i for i in range(1, n + 1, 1)]
+    B = [i for i in range(n + 1, 2 * n + 1, 1)]
+
+    qc.add_qubit(Qubit(f'z'))
+
+    for i in A:
+        qc.add_qubit(Qubit(f'A_{i - 1}'))
+
+    for i in B:
+        qc.add_qubit(Qubit(f'B_{i - n - 1}'))
     
-    # Apply the CNOT gate
-    R.qs.cx(F[2], z[0])
+    add_circuit = add_wo_overflow_circuit(n)
+    sub_circuit = sub_wo_overflow_circuit(n)
+
+    controlled_add = add_circuit.control(ctrl_state=0)
+    controlled_sub = sub_circuit.control(ctrl_state=1)
+
+    qc.append(controlled_add, [z] + A + B)
+    qc.append(controlled_sub, [z] + A + B)
+
+    return qc.to_gate(name="CTRL ADD/SUB")
+
+def control_add_circuit(n):
+    qc = QuantumCircuit(0)
+    z = 0
+    A = [i for i in range(1, n + 1, 1)]
+    B = [i for i in range(n + 1, 2 * n + 1, 1)]
+
+    qc.add_qubit(Qubit(f'z'))
+
+    for i in A:
+        qc.add_qubit(Qubit(f'A_{i - 1}'))
+
+    for i in B:
+        qc.add_qubit(Qubit(f'B_{i - n - 1}'))
+
+
+    controlled_add = add_wo_overflow_circuit(n).control(ctrl_state=1)
+
+    qc.append(controlled_add, [z] + A + B)
+
+    return qc.to_gate(name="CTRL ADD")
+
+
+
+def initial_subtraction_circuit(n):
+    qc = QuantumCircuit()
+    R = [i for i in range(0, n, 1)]
+    F = [i for i in range(n, 2 * n, 1)]
+    z = 2 * n
+
+    for i in R:
+        qc.add_qubit(Qubit(f'R_{i}'))
+
+    for i in F:
+        qc.add_qubit(Qubit(f'F_{i - n}'))
+
+    qc.add_qubit(Qubit(f'z'))
+
+    # Step 1
+    qc.x(R[n-2])
+
+    # Step 2
+    qc.cx(R[n-2], R[n-1])
+
+    # Step 3
+    qc.cx(R[n-1], F[1])
+
+    # Step 4
+    qc.append(XGate().control(ctrl_state=0), [R[n-1], z])
     
-    print("  Step 9: Applied CNOT between F[2] and z to complete restoration of z to 0")
-    print("  After Part 3, F contains the final value of √a")
+    # Step 5
+    qc.append(XGate().control(ctrl_state=0), [R[n-1], F[2]])
 
-# Execute the algorithm steps
-print("Executing algorithm steps:")
-print("-" * 40)
-initial_subtraction()
+    # Step 6
+    qc.append(control_add_sub_circuit(4), [z, R[n-4], R[n-3], R[n-2], R[n-1], F[0], F[1], F[2], F[3]])
 
-print(R.qs)
-visualize_registers()
-exit()
-print("Part 1 completed")
+    return qc.to_gate(name="INITIAL SUBTRACTION")
 
-conditional_addition_or_substraction()
-print("Part 2 completed")
-visualize_registers()
+def conditional_addition_or_subtraction_circuit(n):
+    qc = QuantumCircuit()
+    R = [i for i in range(0, n, 1)]
+    F = [i for i in range(n, 2 * n, 1)]
+    z = 2 * n
 
-remainder_restoration()
-print("Part 3 completed")
-visualize_registers()
-# Print final register states
-print("\nFinal quantum register states:")
-print("-" * 40)
-visualize_registers()
-print(R.qs)
+    for i in R:
+        qc.add_qubit(Qubit(f'R_{i}'))
+
+    for i in F:
+        qc.add_qubit(Qubit(f'F_{i - n}'))
+
+    qc.add_qubit(Qubit(f'z'))
+    
+
+    for i in range(2, n // 2):
+        # Step 1
+        qc.append(XGate().control(ctrl_state=0), [z, F[1]])
+
+        # Step 2
+        qc.cx(F[2], z)
+
+        # Step 3
+        qc.cx(R[n-1], F[1])
+
+        # Step 4
+        qc.append(XGate().control(ctrl_state=0), [R[n-1], z])
+
+        # Step 5
+        qc.append(XGate().control(ctrl_state=0), [R[n-1], F[i+1]])
+
+        # Step 6
+        for j in range(i + 1, 4, 1):
+            qc.swap(F[j], F[j-1])
+
+        # Step 7
+        R_sum_qubits = [R[j] for j in range(n - 2 * i - 2, n, 1)]
+        F_sum_qubits = [F[j] for j in range(0, 2 * i + 2, 1)]
+        qc.append(control_add_sub_circuit(len(R_sum_qubits)), [z] + R_sum_qubits + F_sum_qubits)
+        
+    return qc.to_gate(name="CONDITIONAL ADDITION OR SUBTRACTION")
+
+def remainder_restoration_circuit(n):
+    qc = QuantumCircuit()
+    R = [i for i in range(0, n, 1)]
+    F = [i for i in range(n, 2 * n, 1)]
+    z = 2 * n
+
+    for i in R:
+        qc.add_qubit(Qubit(f'R_{i}'))
+
+    for i in F:
+        qc.add_qubit(Qubit(f'F_{i - n}'))
+
+    qc.add_qubit(Qubit(f'z'))
+
+    # Step 1
+    qc.append(XGate().control(ctrl_state=0), [z, F[1]])
+
+    # Step 2
+    qc.cx(F[2], z)
+
+    # Step 3
+    qc.append(XGate().control(ctrl_state=0), [R[n-1], z])
+
+    # Step 4
+    qc.append(XGate().control(ctrl_state=0), [R[n-1], F[n//2+1]])
+
+    # Step 5
+    qc.x(z)
+
+    # Step 6
+    qc.append(control_add_circuit(n), [z] + R[:] + F[:])
+
+    # Step 7
+    qc.x(z)
+
+    # Step 8
+    for j in range(n//2 + 1, 2, -1):
+        qc.swap(F[j], F[j-1])
+
+    # Step 9
+    qc.cx(F[2], z)
+    
+    return qc.to_gate(name="REMAINDER RESTORATION")
+    
+def remainder_restoration(qs: QuantumSession, R: QuantumFloat, F: QuantumFloat, z: QuantumFloat, n: int):
+    print(f'R = {R.get_measurement()}')
+    print(f'F = {F.get_measurement()}')
+    print(f'z = {z.get_measurement()}')
+    # Step 1
+    qs.append(XGate().control(ctrl_state=0), [z, F[1]])
+
+    # Step 2
+    qs.cx(F[2], z)
+
+    # Step 3
+    qs.append(XGate().control(ctrl_state=0), [R[n-1], z])
+
+    # Step 4
+    qs.append(XGate().control(ctrl_state=0), [R[n-1], F[n//2+1]])
+
+    # Step 5
+    qs.x(z)
+
+    # Step 6
+    qs.append(control_add_circuit(n), [z] + R[:] + F[:])
+
+    # Step 7
+    qs.x(z)
+
+    # Step 8
+    for j in range(n//2 + 1, 2, -1):
+        qs.swap(F[j], F[j-1])
+
+    # Step 9
+    qs.cx(F[2], z)
+
+    
+
+def calculate_square_root(a: int):
+    # Should be amount of bits to represent a, taking into account sign bit, and the fact that n should be even
+    n = math.ceil(math.log2(a + 1))
+
+    if(n % 2 == 1):
+        n += 1
+
+    R = QuantumFloat(n, 0, name="R")
+    F = QuantumFloat(n, 0, name="F")
+    z = QuantumFloat(1, 0, name="z")
+
+    R[:] = a
+    F[:] = 1
+    z[:] = 0
+
+    qs = QuantumSession()
+    qs.append(initial_subtraction_circuit(n), R[:] + F[:] + z[:])
+    qs.append(conditional_addition_or_subtraction_circuit(n), R[:] + F[:] + z[:])
+    remainder_restoration(qs, R, F, z, n)
+    # qs.append(remainder_restoration_circuit(n), R[:] + F[:] + z[:])
+
+    remainder = list(R.get_measurement().keys())[0]
+    root = list(F.get_measurement().keys())[0]
+    root = int(root)
+
+    root = root >> (n//2 - 1)
+
+    return root, remainder
+
+
+if __name__ == "__main__":
+    test_cases = [i for i in range(8, 50)]
+    test_cases = [8, 11, 12, 14, 15, 26, 32, 47, 48]
+    for a in test_cases:
+        calculated_root, calculated_remainder = calculate_square_root(a)
+        root = int(math.sqrt(a))
+        remainder = a - root**2
+        if(calculated_root != root or calculated_remainder != remainder):
+            print(f'\033[91mError for a = {a}\033[0m')
+            print(f'Calculated root = {calculated_root}, Calculated remainder = {calculated_remainder}')
+            print(f'Expected   root = {root}, Expected remainder = {remainder}')
+        else:
+            print(f'\033[92mSuccess for a = {a}\033[0m')

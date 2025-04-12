@@ -150,7 +150,7 @@ if __name__ == "__main__":
         # (25, 8),    # perfect square: 5^2 = 25
         # (36, 8),    # perfect square: 6^2 = 36
         # (15, 8),    # non-perfect square between 3^2 and 4^2
-        (73, 8),    # non-perfect square
+        (48, 8),    # non-perfect square
         # (26, 6),    # non-perfect square
         # (197691, 20),    # non-perfect square
         # (100, 8),   # perfect square: 10^2 = 100
