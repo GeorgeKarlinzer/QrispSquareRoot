@@ -178,4 +178,4 @@ def apply_sub_wo_overflow(a: int, b: int):
     print(f'Result: {B_value}')
 
 if __name__ == "__main__":
-    apply_sub_wo_overflow(12, 14)
+    apply_add_wo_overflow(255, 255)

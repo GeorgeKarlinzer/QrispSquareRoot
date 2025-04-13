@@ -223,38 +223,139 @@ def remainder_restoration_circuit(n):
     qc.cx(F[2], z)
     
     return qc.to_gate(name="REMAINDER RESTORATION")
-    
+
+def debug(R: QuantumFloat, F: QuantumFloat, z: QuantumFloat):
+    R_value = int(list(R.get_measurement().keys())[0])
+    F_value = int(list(F.get_measurement().keys())[0])
+    z_value = int(list(z.get_measurement().keys())[0])
+    print(f'R = {R_value:0{8}b}')
+    print(f'F = {F_value:0{8}b}')
+    print(f'z = {z_value:0b}')
+
+def initial_subtraction(qs: QuantumSession, R: QuantumFloat, F: QuantumFloat, z: QuantumFloat, n: int):
+     # Step 1
+    qs.x(R[n-2])
+    print('Part 1 Step 1')
+    debug(R, F, z)
+    print('--------------------------------')
+    # Step 2
+    qs.cx(R[n-2], R[n-1])
+    print('Part 1 Step 2')
+    debug(R, F, z)
+    print('--------------------------------')
+    # Step 3
+    qs.cx(R[n-1], F[1])
+    print('Part 1 Step 3')
+    debug(R, F, z)
+    print('--------------------------------')
+    # Step 4
+    qs.append(XGate().control(ctrl_state=0), [R[n-1], z])
+    print('Part 1 Step 4')
+    debug(R, F, z)
+    print('--------------------------------')
+    # Step 5
+    qs.append(XGate().control(ctrl_state=0), [R[n-1], F[2]])
+    print('Part 1 Step 5')
+    debug(R, F, z)
+    print('--------------------------------')
+    # Step 6
+    qs.append(control_add_sub_circuit(4), [z, R[n-4], R[n-3], R[n-2], R[n-1], F[0], F[1], F[2], F[3]])
+    print('Part 1 Step 6')
+    debug(R, F, z)
+    print('--------------------------------')
+
+def conditional_addition_or_subtraction(qs: QuantumSession, R: QuantumFloat, F: QuantumFloat, z: QuantumFloat, n: int):
+    for i in range(n//2-1, 1, -1):
+        # Step 1
+        qs.append(XGate().control(ctrl_state=0), [z, F[1]])
+        print(f'Part 2 Step 1 {i}')
+        debug(R, F, z)
+        print('--------------------------------')
+        # Step 2
+        qs.cx(F[2], z)
+        print(f'Part 2 Step 2 {i}')
+        debug(R, F, z)
+        print('--------------------------------')
+
+        # Step 3
+        qs.cx(R[n-1], F[1])
+        print(f'Part 2 Step 3 {i}')
+        debug(R, F, z)
+        print('--------------------------------')
+        # Step 4
+        qs.append(XGate().control(ctrl_state=0), [R[n-1], z])
+        print(f'Part 2 Step 4 {i}')
+        debug(R, F, z)
+        print('--------------------------------')
+        # Step 5
+        qs.append(XGate().control(ctrl_state=0), [R[n-1], F[i+1]])
+        print(f'Part 2 Step 5 {i}')
+        debug(R, F, z)
+        print('--------------------------------')
+        # Step 6
+        for j in range(i + 1, 4, 1):
+            qs.swap(F[j], F[j-1])
+            print(f'Part 2 Step 6 {i} {j}')
+            debug(R, F, z)
+            print('--------------------------------')
+
+        # Step 7
+        R_sum_qubits = [R[j] for j in range(n - 2 * i - 2, n, 1)]
+        F_sum_qubits = [F[j] for j in range(0, 2 * i + 2, 1)]
+        qs.append(control_add_sub_circuit(len(R_sum_qubits)), [z] + R_sum_qubits + F_sum_qubits)
+        print(f'Part 2 Step 7 {i}')
+        debug(R, F, z)
+        print('--------------------------------')
+
 def remainder_restoration(qs: QuantumSession, R: QuantumFloat, F: QuantumFloat, z: QuantumFloat, n: int):
-    print(f'R = {R.get_measurement()}')
-    print(f'F = {F.get_measurement()}')
-    print(f'z = {z.get_measurement()}')
     # Step 1
     qs.append(XGate().control(ctrl_state=0), [z, F[1]])
-
+    print('Part 3 Step 1')
+    debug(R, F, z)
+    print('--------------------------------')
     # Step 2
     qs.cx(F[2], z)
+    print('Part 3 Step 2')
+    debug(R, F, z)
+    print('--------------------------------')
 
     # Step 3
     qs.append(XGate().control(ctrl_state=0), [R[n-1], z])
-
+    print('Part 3 Step 3')
+    debug(R, F, z)
+    print('--------------------------------')
     # Step 4
     qs.append(XGate().control(ctrl_state=0), [R[n-1], F[n//2+1]])
+    print('Part 3 Step 4')
+    debug(R, F, z)
+    print('--------------------------------')
 
     # Step 5
     qs.x(z)
-
+    print('Part 3 Step 5')
+    debug(R, F, z)
+    print('--------------------------------')
     # Step 6
     qs.append(control_add_circuit(n), [z] + R[:] + F[:])
-
+    print('Part 3 Step 6')
+    debug(R, F, z)
+    print('--------------------------------')
     # Step 7
     qs.x(z)
-
+    print('Part 3 Step 7')
+    debug(R, F, z)
+    print('--------------------------------')
     # Step 8
     for j in range(n//2 + 1, 2, -1):
         qs.swap(F[j], F[j-1])
-
+        print(f'Part 3 Step 8 {j}')
+        debug(R, F, z)
+        print('--------------------------------')
     # Step 9
     qs.cx(F[2], z)
+    print('Part 3 Step 9')
+    debug(R, F, z)
+    print('--------------------------------')
 
     
 
@@ -264,6 +365,8 @@ def calculate_square_root(a: int):
 
     if(n % 2 == 1):
         n += 1
+    elif(a & (1 << (n - 1))):
+        n += 2
 
     R = QuantumFloat(n, 0, name="R")
     F = QuantumFloat(n, 0, name="F")
@@ -274,10 +377,15 @@ def calculate_square_root(a: int):
     z[:] = 0
 
     qs = QuantumSession()
-    qs.append(initial_subtraction_circuit(n), R[:] + F[:] + z[:])
-    qs.append(conditional_addition_or_subtraction_circuit(n), R[:] + F[:] + z[:])
-    remainder_restoration(qs, R, F, z, n)
+    # qs.append(initial_subtraction_circuit(n), R[:] + F[:] + z[:])
+    # qs.append(conditional_addition_or_subtraction_circuit(n), R[:] + F[:] + z[:])
     # qs.append(remainder_restoration_circuit(n), R[:] + F[:] + z[:])
+    print('Initial state')
+    debug(R, F, z)
+    print('--------------------------------')
+    initial_subtraction(qs, R, F, z, n)
+    conditional_addition_or_subtraction(qs, R, F, z, n)
+    remainder_restoration(qs, R, F, z, n)
 
     remainder = list(R.get_measurement().keys())[0]
     root = list(F.get_measurement().keys())[0]
@@ -290,7 +398,8 @@ def calculate_square_root(a: int):
 
 if __name__ == "__main__":
     test_cases = [i for i in range(8, 50)]
-    test_cases = [8, 11, 12, 14, 15, 26, 32, 47, 48]
+    test_cases = [8, 11, 12, 14, 15, 26, 32, 47, 48, 60, 76, 121, 125]
+    test_cases = [26, 15, 48]
     for a in test_cases:
         calculated_root, calculated_remainder = calculate_square_root(a)
         root = int(math.sqrt(a))

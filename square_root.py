@@ -150,7 +150,7 @@ if __name__ == "__main__":
         # (25, 8),    # perfect square: 5^2 = 25
         # (36, 8),    # perfect square: 6^2 = 36
         # (15, 8),    # non-perfect square between 3^2 and 4^2
-        (48, 8),    # non-perfect square
+        (321131, 20),    # non-perfect square
         # (26, 6),    # non-perfect square
         # (197691, 20),    # non-perfect square
         # (100, 8),   # perfect square: 10^2 = 100
@@ -161,10 +161,9 @@ if __name__ == "__main__":
         sqrt_result, remainder = non_restoring_square_root(test_value, bit_length)
         
         # Display results
-        print(f"Input: {test_value} (binary: {test_value:0{bit_length}b})")
-        print(f"Square Root: {sqrt_result} (binary: {sqrt_result:0{bit_length//2}b})")
-        print(f"Remainder: {remainder}")
+        print(f"Input: {test_value}")
+        print(f"Square Root:   {sqrt_result}")
         print(f"Expected sqrt: {int(test_value**0.5)}")
-        print(f"Verification: {sqrt_result}^2 = {sqrt_result**2}")
-        print(f"Check remainder: {test_value} - {sqrt_result}^2 = {test_value - sqrt_result**2}")
+        print(f"Remainder:          {remainder}")
+        print(f"Expected remainder: {test_value - int(test_value**0.5)**2}")
         print("-" * 50)
