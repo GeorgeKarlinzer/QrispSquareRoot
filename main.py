@@ -1,4 +1,4 @@
-from qrisp import QuantumFloat, x, cx, QuantumCircuit, control, Operation, QuantumSession, XGate, Qubit
+from qrisp import QuantumFloat, QuantumCircuit, Operation, QuantumSession, XGate, Qubit
 import math
 
 def peres_gate():
@@ -102,99 +102,126 @@ def control_add_circuit(n):
 
     return qc.to_gate(name="CTRL ADD")
 
+def initial_subtraction_circuit(n):
+    qc = QuantumCircuit()
+    R = [i for i in range(n)]
+    F = [i for i in range(n, 2 * n)]
+    z = 2 * n
 
-def debug(m: str, R: QuantumFloat, F: QuantumFloat, z: QuantumFloat):
-    return
-    R_value = int(list(R.get_measurement().keys())[0])
-    F_value = int(list(F.get_measurement().keys())[0])
-    z_value = int(list(z.get_measurement().keys())[0])
-    print(m)
-    print(f'R = {R_value:0{8}b}')
-    print(f'F = {F_value:0{8}b}')
-    print(f'z = {z_value:0b}')
-    print('- ' * 20)
+    for i in R:
+        qc.add_qubit(Qubit(f'R_{i}'))
 
-def initial_subtraction(qs: QuantumSession, R: QuantumFloat, F: QuantumFloat, z: QuantumFloat, n: int):
-     # Step 1
-    qs.x(R[n-2])
-    debug('Part 1 Step 1', R, F, z)
+    for i in F:
+        qc.add_qubit(Qubit(f'F_{i - n}'))
+
+    qc.add_qubit(Qubit(f'z'))
+
+    # Step 1
+    qc.x(R[n-2])
+
     # Step 2
-    qs.cx(R[n-2], R[n-1])
-    debug('Part 1 Step 2', R, F, z)
-    # Step 3
-    qs.cx(R[n-1], F[1])
-    debug('Part 1 Step 3', R, F, z)
-    # Step 4
-    qs.append(XGate().control(ctrl_state=0), [R[n-1], z])
-    debug('Part 1 Step 4', R, F, z)
-    # Step 5
-    qs.append(XGate().control(ctrl_state=0), [R[n-1], F[2]])
-    debug('Part 1 Step 5', R, F, z)
-    # Step 6
-    qs.append(control_add_sub_circuit(4), [z, R[n-4], R[n-3], R[n-2], R[n-1], F[0], F[1], F[2], F[3]])
-    debug('Part 1 Step 6', R, F, z)
+    qc.cx(R[n-2], R[n-1])
 
-def conditional_addition_or_subtraction(qs: QuantumSession, R: QuantumFloat, F: QuantumFloat, z: QuantumFloat, n: int):
-    for i in range(2, n//2, 1):
+    # Step 3
+    qc.cx(R[n-1], F[1])
+
+    # Step 4
+    qc.append(XGate().control(ctrl_state=0), [R[n-1], z])
+    
+    # Step 5
+    qc.append(XGate().control(ctrl_state=0), [R[n-1], F[2]])
+
+    # Step 6
+    qc.append(control_add_sub_circuit(4), [z, R[n-4], R[n-3], R[n-2], R[n-1], F[0], F[1], F[2], F[3]])
+
+    return qc.to_gate(name="INITIAL SUBTRACTION")
+
+def conditional_addition_or_subtraction_circuit(n):
+    qc = QuantumCircuit()
+    R = [i for i in range(n)]
+    F = [i for i in range(n, 2 * n)]
+    z = 2 * n
+
+    for i in R:
+        qc.add_qubit(Qubit(f'R_{i}'))
+
+    for i in F:
+        qc.add_qubit(Qubit(f'F_{i - n}'))
+
+    qc.add_qubit(Qubit(f'z'))
+    
+
+    for i in range(2, n // 2):
         # Step 1
-        qs.append(XGate().control(ctrl_state=0), [z, F[1]])
-        debug(f'Part 2 Step 1 {i}', R, F, z)
+        qc.append(XGate().control(ctrl_state=0), [z, F[1]])
+
         # Step 2
-        qs.cx(F[2], z)
-        debug(f'Part 2 Step 2 {i}', R, F, z)
+        qc.cx(F[2], z)
+
         # Step 3
-        qs.cx(R[n-1], F[1])
-        debug(f'Part 2 Step 3 {i}', R, F, z)
+        qc.cx(R[n-1], F[1])
+
         # Step 4
-        qs.append(XGate().control(ctrl_state=0), [R[n-1], z])
-        debug(f'Part 2 Step 4 {i}', R, F, z)
+        qc.append(XGate().control(ctrl_state=0), [R[n-1], z])
+
         # Step 5
-        qs.append(XGate().control(ctrl_state=0), [R[n-1], F[i+1]])
-        debug(f'Part 2 Step 5 {i}', R, F, z)
+        qc.append(XGate().control(ctrl_state=0), [R[n-1], F[i+1]])
+
         # Step 6
         for j in range(i + 1, 2, -1):
-            qs.swap(F[j], F[j-1])
-            debug(f'Part 2 Step 6 {i} {j}', R, F, z)
+            qc.swap(F[j], F[j-1])
 
         # Step 7
-        R_sum_qubits = [R[j] for j in range(n - 2 * i - 2, n, 1)]
-        F_sum_qubits = [F[j] for j in range(0, 2 * i + 2, 1)]
-        qs.append(control_add_sub_circuit(len(R_sum_qubits)), [z] + R_sum_qubits + F_sum_qubits)
-        debug(f'Part 2 Step 7 {i}', R, F, z)
+        R_sum_qubits = [R[j] for j in range(n - 2 * i - 2, n)]
+        F_sum_qubits = [F[j] for j in range(0, 2 * i + 2)]
+        qc.append(control_add_sub_circuit(len(R_sum_qubits)), [z] + R_sum_qubits + F_sum_qubits)
+        
+    return qc.to_gate(name="CONDITIONAL ADDITION OR SUBTRACTION")
 
-def remainder_restoration(qs: QuantumSession, R: QuantumFloat, F: QuantumFloat, z: QuantumFloat, n: int):
+def remainder_restoration_circuit(n):
+    qc = QuantumCircuit()
+    R = [i for i in range(n)]
+    F = [i for i in range(n, 2 * n)]
+    z = 2 * n
+
+    for i in R:
+        qc.add_qubit(Qubit(f'R_{i}'))
+
+    for i in F:
+        qc.add_qubit(Qubit(f'F_{i - n}'))
+
+    qc.add_qubit(Qubit(f'z'))
+
     # Step 1
-    qs.append(XGate().control(ctrl_state=0), [z, F[1]])
-    debug('Part 3 Step 1', R, F, z)
-    # Step 2
-    qs.cx(F[2], z)
-    debug('Part 3 Step 2', R, F, z)
+    qc.append(XGate().control(ctrl_state=0), [z, F[1]])
 
+    # Step 2
+    qc.cx(F[2], z)
 
     # Step 3
-    qs.append(XGate().control(ctrl_state=0), [R[n-1], z])
-    debug('Part 3 Step 3', R, F, z)
+    qc.append(XGate().control(ctrl_state=0), [R[n-1], z])
+
     # Step 4
-    qs.append(XGate().control(ctrl_state=0), [R[n-1], F[n//2+1]])
-    debug('Part 3 Step 4', R, F, z)
+    qc.append(XGate().control(ctrl_state=0), [R[n-1], F[n//2+1]])
+
     # Step 5
-    qs.x(z)
-    debug('Part 3 Step 5', R, F, z)
+    qc.x(z)
+
     # Step 6
-    qs.append(control_add_circuit(n), [z] + R[:] + F[:])
-    debug('Part 3 Step 6', R, F, z)
+    qc.append(control_add_circuit(n), [z] + R[:] + F[:])
+
     # Step 7
-    qs.x(z)
-    debug('Part 3 Step 7', R, F, z)
+    qc.x(z)
+
     # Step 8
     for j in range(n//2 + 1, 2, -1):
-        qs.swap(F[j], F[j-1])
-        debug(f'Part 3 Step 8 {j}', R, F, z)
-    # Step 9
-    qs.cx(F[2], z)
-    debug('Part 3 Step 9', R, F, z)
+        qc.swap(F[j], F[j-1])
 
+    # Step 9
+    qc.cx(F[2], z)
     
+    return qc.to_gate(name="REMAINDER RESTORATION")
+
 
 def calculate_square_root(a: int):
     # Should be amount of bits to represent a, taking into account sign bit, and the fact that n should be even
@@ -214,13 +241,9 @@ def calculate_square_root(a: int):
     z[:] = 0
 
     qs = QuantumSession()
-    # qs.append(initial_subtraction_circuit(n), R[:] + F[:] + z[:])
-    # qs.append(conditional_addition_or_subtraction_circuit(n), R[:] + F[:] + z[:])
-    # qs.append(remainder_restoration_circuit(n), R[:] + F[:] + z[:])
-    debug('Initial state', R, F, z)
-    initial_subtraction(qs, R, F, z, n)
-    conditional_addition_or_subtraction(qs, R, F, z, n)
-    remainder_restoration(qs, R, F, z, n)
+    qs.append(initial_subtraction_circuit(n), R[:] + F[:] + z[:])
+    qs.append(conditional_addition_or_subtraction_circuit(n), R[:] + F[:] + z[:])
+    qs.append(remainder_restoration_circuit(n), R[:] + F[:] + z[:])
 
     remainder = list(R.get_measurement().keys())[0]
     root = list(F.get_measurement().keys())[0]
@@ -234,7 +257,7 @@ def calculate_square_root(a: int):
 if __name__ == "__main__":
     test_cases = [i for i in range(8, 50)]
     test_cases = [8, 11, 12, 14, 15, 26, 32, 47, 48, 60, 76, 121, 125]
-    test_cases = [315]
+    # test_cases = [73]
     for a in test_cases:
         calculated_root, calculated_remainder = calculate_square_root(a)
         root = int(math.sqrt(a))
