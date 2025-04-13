@@ -1,5 +1,3 @@
-
-
 import math
 
 
@@ -163,9 +161,9 @@ def calculate_square_root(a: int):
     conditional_addition_or_subtraction(R, F, False, n)
     remainder_restoration(R, F, False, n)
 
-    return R, F
+    # take n // 2 bits from F starting from the third least significant bit
+    root = int(''.join(str(int(x)) for x in F[2:n//2+2]), 2)
+    return root
 
 
-
-    
-    
+print(calculate_square_root(26))
