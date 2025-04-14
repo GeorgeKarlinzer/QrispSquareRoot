@@ -222,6 +222,31 @@ def remainder_restoration_circuit(n):
     
     return qc.to_gate(name="REMAINDER RESTORATION")
 
+def square_root_circuit(n):
+    qc = QuantumCircuit()
+    R = [i for i in range(n)]
+    F = [i for i in range(n, 2 * n)]
+    z = 2 * n
+
+    for i in R:
+        qc.add_qubit(Qubit(f'R_{i}'))
+
+    for i in F:
+        qc.add_qubit(Qubit(f'F_{i - n}'))
+
+    qc.add_qubit(Qubit(f'z'))
+
+    part1_circuit = initial_subtraction_circuit(n)
+    part2_circuit = conditional_addition_or_subtraction_circuit(n)
+    part3_circuit = remainder_restoration_circuit(n)
+
+    qc.append(part1_circuit, R[:] + F[:] + [z])
+    qc.append(part2_circuit, R[:] + F[:] + [z])
+    qc.append(part3_circuit, R[:] + F[:] + [z])
+
+    return qc.to_gate(name="ISQRT")
+    
+    
 
 def calculate_square_root(a: int):
     # Should be amount of bits to represent a, taking into account sign bit, and the fact that n should be even
@@ -241,9 +266,7 @@ def calculate_square_root(a: int):
     z[:] = 0
 
     qs = QuantumSession()
-    qs.append(initial_subtraction_circuit(n), R[:] + F[:] + z[:])
-    qs.append(conditional_addition_or_subtraction_circuit(n), R[:] + F[:] + z[:])
-    qs.append(remainder_restoration_circuit(n), R[:] + F[:] + z[:])
+    qs.append(square_root_circuit(n), R[:] + F[:] + z[:])
 
     remainder = list(R.get_measurement().keys())[0]
     root = list(F.get_measurement().keys())[0]
